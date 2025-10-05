@@ -1,0 +1,66 @@
+name: 'neutria-backend'
+
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: ./build/nginx/Dockerfile
+    image: ${COMPOSE_PROJECT_NAME}-nginx
+    container_name: ${COMPOSE_PROJECT_NAME}-nginx
+    volumes:
+      - type: bind
+        source: ./api
+        target: /app/api
+    depends_on:
+      - php
+    ports:
+      - 8000:80
+    networks:
+      - network
+  php:
+    build:
+      args:
+        USER_ID: ${USER_ID:-0}
+        GROUP_ID: ${GROUP_ID:-0}
+        USER_NAME: ${USER_NAME:-0}
+        GROUP_NAME: ${GROUP_NAME:-0}
+      context: .
+      dockerfile: ./build/php/Dockerfile
+    image: ${COMPOSE_PROJECT_NAME}-php
+    container_name: ${COMPOSE_PROJECT_NAME}-php
+    volumes:
+      - type: bind
+        source: ./api
+        target: /app/api
+    depends_on:
+      - database
+    networks:
+      - network
+  database:
+    build:
+      context: .
+      dockerfile: ./build/database/Dockerfile
+    image: ${COMPOSE_PROJECT_NAME}-database
+    container_name: ${COMPOSE_PROJECT_NAME}-database
+    ports:
+      - 3306:3306
+    volumes:
+      - type: volume
+        source: database-volume
+        target: /var/lib/mysql
+    environment:
+      MYSQL_DATABASE: dbneutria
+      MYSQL_ROOT_PASSWORD: gc2MUtSsFz2y6FzeNeQ2jcrfSVcSQj
+      MYSQL_USER: userneutria
+      MYSQL_PASSWORD: RGKmnVsUVP7m3nGuLMAL3TvRdVMj6h
+    networks:
+      - network
+
+networks:
+  network:
+    name : ${COMPOSE_PROJECT_NAME}-network
+    driver: bridge
+
+volumes:
+  database-volume:
+    driver: local
