@@ -4,6 +4,7 @@ namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
 use App\Controller\RoomController;
 use App\Repository\RoomRepository;
 use Carbon\Carbon;
@@ -16,9 +17,10 @@ use Symfony\Component\Serializer\Annotation\Groups;
 #[ApiResource(
     normalizationContext: ['groups' => ['capture:room']],
     operations: [
+        new GetCollection(),
         new Get(),
         new Get(
-            uriTemplate: '/rooms/last/{roomId}',
+            uriTemplate: '/rooms/{id}/last',
             controller: RoomController::class . '::getRoomWithLastCapture'
         )
     ]
@@ -45,12 +47,21 @@ class Room
     #[ORM\OneToMany(targetEntity: Capture::class, mappedBy: 'room')]
     private Collection $captures;
 
+    /**
+     * @var Collection<int, CaptureType>
+     */
+    #[ORM\ManyToMany(targetEntity: CaptureType::class)]
+    #[ORM\JoinTable(name: 'room_capture_type')]
+    #[Groups(['capture:room'])]
+    private Collection $captureTypes;
+
     #[ORM\Column]
     private ?\DateTime $createdAt = null;
 
     public function __construct()
     {
         $this->captures = new ArrayCollection();
+        $this->captureTypes = new ArrayCollection();
         $this->createdAt = Carbon::now();
     }
 
@@ -121,6 +132,30 @@ class Room
     public function setCreatedAt(\DateTime $createdAt): static
     {
         $this->createdAt = $createdAt;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, CaptureType>
+     */
+    public function getCaptureTypes(): Collection
+    {
+        return $this->captureTypes;
+    }
+
+    public function addCaptureType(CaptureType $captureType): static
+    {
+        if (!$this->captureTypes->contains($captureType)) {
+            $this->captureTypes->add($captureType);
+        }
+
+        return $this;
+    }
+
+    public function removeCaptureType(CaptureType $captureType): static
+    {
+        $this->captureTypes->removeElement($captureType);
 
         return $this;
     }

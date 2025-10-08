@@ -2,8 +2,10 @@
 
 namespace App\Controller;
 
+use ApiPlatform\Metadata\Exception\ResourceClassNotFoundException;
 use App\Entity\Room;
 use App\Repository\CaptureRepository;
+use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Annotation\Route;
@@ -16,25 +18,40 @@ class RoomController extends AbstractController
         private SerializerInterface $serializer
     ) {}
 
-    #[Route('/api/rooms/last/{roomId}', name: 'room_with_last_capture', methods: ['GET'])]
     public function getRoomWithLastCapture(Room $room): JsonResponse
     {
-        $lastCapture = $this->captureRepository->findOneBy(
-            ['room' => $room],
-            ['createdAt' => 'DESC']
-        );
+        $lastCapturesByType = [];
+
+        // Get the last capture for each type available in this room
+        foreach ($room->getCaptureTypes() as $captureType) {
+            $lastCapture = $this->captureRepository->findOneBy(
+                ['room' => $room, 'type' => $captureType],
+                ['createdAt' => 'DESC']
+            );
+
+            if ($lastCapture) {
+                $lastCapturesByType[] = [
+                    'type' => [
+                        'id' => $captureType->getId(),
+                        'name' => $captureType->getName(),
+                        'description' => $captureType->getDescription()
+                    ],
+                    'capture' => [
+                        'id' => $lastCapture->getId(),
+                        'value' => $lastCapture->getValue(),
+                        'description' => $lastCapture->getDescription(),
+                        'createdAt' => $lastCapture->getCreatedAt()->format('Y-m-d H:i:s')
+                    ]
+                ];
+            }
+        }
 
         $data = [
             'id' => $room->getId(),
             'name' => $room->getName(),
             'description' => $room->getDescription(),
-            'createdAt' => $room->getCreatedAt(),
-            'lastCapture' => $lastCapture ? [
-                'id' => $lastCapture->getId(),
-                'value' => $lastCapture->getValue(),
-                'description' => $lastCapture->getDescription(),
-                'createdAt' => $lastCapture->getCreatedAt()
-            ] : null
+            'createdAt' => $room->getCreatedAt()->format('Y-m-d H:i:s'),
+            'lastCapturesByType' => $lastCapturesByType
         ];
 
         return $this->json($data);

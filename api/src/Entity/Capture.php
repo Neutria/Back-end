@@ -42,6 +42,11 @@ class Capture
     #[Groups(['capture:room'])]
     private ?Room $room = null;
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: false)]
+    #[Groups(['capture:read'])]
+    private ?CaptureType $type = null;
+
     #[ORM\Column]
     #[Groups(['capture:read'])]
     private ?\DateTime $createdAt = null;
@@ -100,6 +105,18 @@ class Capture
     public function setCreatedAt(\DateTime $createdAt): static
     {
         $this->createdAt = $createdAt;
+
+        return $this;
+    }
+
+    public function getType(): ?CaptureType
+    {
+        return $this->type;
+    }
+
+    public function setType(?CaptureType $type): static
+    {
+        $this->type = $type;
 
         return $this;
     }
