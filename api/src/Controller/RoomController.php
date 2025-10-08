@@ -40,7 +40,8 @@ class RoomController extends AbstractController
                         'id' => $lastCapture->getId(),
                         'value' => $lastCapture->getValue(),
                         'description' => $lastCapture->getDescription(),
-                        'createdAt' => $lastCapture->getCreatedAt()->format('Y-m-d H:i:s')
+                        'createdAt' => $lastCapture->getCreatedAt()->format('c'),
+                        'dateCaptured' => $lastCapture->getDateCaptured()?->format('c')
                     ]
                 ];
             }

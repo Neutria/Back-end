@@ -5,6 +5,7 @@ namespace App\DataFixtures;
 use App\Entity\CaptureType;
 use App\Entity\Room;
 use App\Entity\Capture;
+use Carbon\Carbon;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Persistence\ObjectManager;
 
@@ -74,11 +75,13 @@ class AppFixtures extends Fixture
                 // Create multiple captures for each type (simulating history)
                 for ($i = 0; $i < 3; $i++) {
                     $capture = new Capture();
+                    $capture->setDateCaptured(Carbon::now());
                     $capture->setValue($data['values'][array_rand($data['values'])]);
                     $capture->setDescription($data['description']);
                     $capture->setRoom($room);
                     $capture->setType($captureType);
-                    $capture->setCreatedAt(new \DateTime('-' . $hourOffset . ' hours'));
+                    // $capture->setCreatedAt(new \DateTime('-' . $hourOffset . ' hours'));
+                    $capture->setCreatedAt(Carbon::now());
                     $manager->persist($capture);
                     $hourOffset++;
                 }

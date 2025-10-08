@@ -3,8 +3,12 @@
 namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Put;
 use App\Controller\RoomController;
 use App\Repository\RoomRepository;
 use Carbon\Carbon;
@@ -22,7 +26,11 @@ use Symfony\Component\Serializer\Annotation\Groups;
         new Get(
             uriTemplate: '/rooms/{id}/last',
             controller: RoomController::class . '::getRoomWithLastCapture'
-        )
+        ),
+        new Post(),
+        new Put(),
+        new Patch(),
+        new Delete()
     ]
 )]
 class Room
@@ -44,7 +52,7 @@ class Room
     /**
      * @var Collection<int, Capture>
      */
-    #[ORM\OneToMany(targetEntity: Capture::class, mappedBy: 'room')]
+    #[ORM\OneToMany(targetEntity: Capture::class, mappedBy: 'room', cascade: ['remove'])]
     private Collection $captures;
 
     /**

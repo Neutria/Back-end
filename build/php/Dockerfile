@@ -12,6 +12,10 @@ COPY ./api/ /app/api/
 WORKDIR /app/api/
 
 RUN ln -snf /usr/share/zoneinfo/Europe/Paris /etc/localtime && echo "Europe/Paris" > /etc/timezone
+
+# Configure PHP timezone
+RUN echo "date.timezone = Europe/Paris" > /usr/local/etc/php/conf.d/timezone.ini
+
 # Arguments defined in compose.yml
 ARG USER_NAME
 ARG USER_ID

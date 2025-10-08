@@ -38,7 +38,7 @@ class Capture
     private ?string $description = null;
 
     #[ORM\ManyToOne(inversedBy: 'captures')]
-    #[ORM\JoinColumn(nullable: false)]
+    #[ORM\JoinColumn(nullable: true)]
     #[Groups(['capture:room'])]
     private ?Room $room = null;
 
@@ -50,6 +50,10 @@ class Capture
     #[ORM\Column]
     #[Groups(['capture:read'])]
     private ?\DateTime $createdAt = null;
+
+    #[ORM\Column]
+    #[Groups(['capture:read', 'capture:room'])]
+    private ?\DateTime $dateCaptured = null;
 
     public function __construct()
     {
@@ -117,6 +121,18 @@ class Capture
     public function setType(?CaptureType $type): static
     {
         $this->type = $type;
+
+        return $this;
+    }
+
+    public function getDateCaptured(): ?\DateTime
+    {
+        return $this->dateCaptured;
+    }
+
+    public function setDateCaptured(\DateTime $dateCaptured): static
+    {
+        $this->dateCaptured = $dateCaptured;
 
         return $this;
     }
