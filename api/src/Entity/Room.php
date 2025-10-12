@@ -19,7 +19,8 @@ use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: RoomRepository::class)]
 #[ApiResource(
-    normalizationContext: ['groups' => ['capture:room']],
+    normalizationContext: ['groups' => ['room:read', 'capture:room']],
+    denormalizationContext: ['groups' => ['room:write']],
     operations: [
         new GetCollection(),
         new Get(),
@@ -38,15 +39,15 @@ class Room
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['capture:room'])]
+    #[Groups(['capture:room', 'room:read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 15)]
-    #[Groups(['capture:room'])]
+    #[Groups(['capture:room', 'room:read', 'room:write'])]
     private ?string $name = null;
 
     #[ORM\Column(length: 255, nullable: true)]
-    #[Groups(['capture:room'])]
+    #[Groups(['capture:room', 'room:read', 'room:write'])]
     private ?string $description = null;
 
     /**
@@ -60,17 +61,34 @@ class Room
      */
     #[ORM\ManyToMany(targetEntity: CaptureType::class)]
     #[ORM\JoinTable(name: 'room_capture_type')]
-    #[Groups(['capture:room'])]
+    #[Groups(['capture:room', 'room:read'])]
     private Collection $captureTypes;
 
     #[ORM\Column]
+    #[Groups(['capture:room', 'room:read'])]
     private ?\DateTime $createdAt = null;
+
+    /**
+     * @var Collection<int, AcquisitionSystem>
+     */
+    #[ORM\OneToMany(targetEntity: AcquisitionSystem::class, mappedBy: 'room', cascade: ['persist'])]
+    #[Groups(['capture:room', 'room:read'])]
+    private Collection $acquisitionSystems;
+
+    /**
+     * @var Collection<int, Equipment>
+     */
+    #[ORM\ManyToMany(targetEntity: Equipment::class, inversedBy: 'rooms')]
+    #[Groups(['capture:room', 'room:read'])]
+    private Collection $equipment;
 
     public function __construct()
     {
         $this->captures = new ArrayCollection();
         $this->captureTypes = new ArrayCollection();
         $this->createdAt = Carbon::now();
+        $this->acquisitionSystems = new ArrayCollection();
+        $this->equipment = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -137,13 +155,6 @@ class Room
         return $this->createdAt;
     }
 
-    public function setCreatedAt(\DateTime $createdAt): static
-    {
-        $this->createdAt = $createdAt;
-
-        return $this;
-    }
-
     /**
      * @return Collection<int, CaptureType>
      */
@@ -164,6 +175,60 @@ class Room
     public function removeCaptureType(CaptureType $captureType): static
     {
         $this->captureTypes->removeElement($captureType);
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, AcquisitionSystem>
+     */
+    public function getAcquisitionSystems(): Collection
+    {
+        return $this->acquisitionSystems;
+    }
+
+    public function addAcquisitionSystem(AcquisitionSystem $acquisitionSystem): static
+    {
+        if (!$this->acquisitionSystems->contains($acquisitionSystem)) {
+            $this->acquisitionSystems->add($acquisitionSystem);
+            $acquisitionSystem->setRoom($this);
+        }
+
+        return $this;
+    }
+
+    public function removeAcquisitionSystem(AcquisitionSystem $acquisitionSystem): static
+    {
+        if ($this->acquisitionSystems->removeElement($acquisitionSystem)) {
+            // set the owning side to null (unless already changed)
+            if ($acquisitionSystem->getRoom() === $this) {
+                $acquisitionSystem->setRoom(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Equipment>
+     */
+    public function getEquipment(): Collection
+    {
+        return $this->equipment;
+    }
+
+    public function addEquipment(Equipment $equipment): static
+    {
+        if (!$this->equipment->contains($equipment)) {
+            $this->equipment->add($equipment);
+        }
+
+        return $this;
+    }
+
+    public function removeEquipment(Equipment $equipment): static
+    {
+        $this->equipment->removeElement($equipment);
 
         return $this;
     }

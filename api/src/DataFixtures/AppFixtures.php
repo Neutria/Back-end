@@ -2,7 +2,9 @@
 
 namespace App\DataFixtures;
 
+use App\Entity\AcquisitionSystem;
 use App\Entity\CaptureType;
+use App\Entity\Equipment;
 use App\Entity\Room;
 use App\Entity\Capture;
 use Carbon\Carbon;
@@ -29,29 +31,95 @@ class AppFixtures extends Fixture
             $captureTypeEntities[$name] = $captureType;
         }
 
-        // Create Rooms with their available CaptureTypes
-        $rooms = [
-            ['Bureau A1', 'Bureau individuel côté sud', ['Temperature', 'Humidité', 'CO2']],
-            ['Bureau A2', 'Bureau individuel côté nord', ['Temperature', 'Humidité', 'CO2']],
-            ['Open Space', 'Espace partagé 20 pers', ['Temperature', 'Humidité', 'CO2', 'Luminosité', 'Bruit']],
-            ['Réunion', 'Salle réunion 8 pers', ['Temperature', 'Humidité', 'CO2', 'Bruit']],
-            ['Kitchen', 'Espace détente', ['Temperature', 'Humidité']],
-            ['Hall', 'Hall accueil', ['Temperature', 'Luminosité']],
+        // Create Equipment
+        $equipmentData = [
+            ['Ordinateur', 12],
+            ['Wifi', 1],
+            ['Machine à café', 1],
+            ['Fontaine à eau', 1],
+            ['Ecrans', 24],
+            ['Chaises', 50]
+        ];
+
+        $equipmentEntities = [];
+        foreach ($equipmentData as [$name, $capacity]) {
+            $equipment = new Equipment();
+            $equipment->setName($name);
+            $equipment->setCapacity($capacity);
+            $manager->persist($equipment);
+            $equipmentEntities[$name] = $equipment;
+        }
+
+        // Create Rooms with their available CaptureTypes and Equipment
+        $roomsData = [
+            [
+                'name' => 'Bureau A1',
+                'description' => 'Bureau individuel côté sud',
+                'captureTypes' => ['Temperature', 'Humidité', 'CO2'],
+                'equipment' => ['Ordinateur', 'Ecrans', 'Chaises'],
+                'acquisitionSystem' => 'Sensor-A1-001'
+            ],
+            [
+                'name' => 'Bureau A2',
+                'description' => 'Bureau individuel côté nord',
+                'captureTypes' => ['Temperature', 'Humidité', 'CO2'],
+                'equipment' => ['Ordinateur', 'Ecrans', 'Chaises'],
+                'acquisitionSystem' => 'Sensor-A2-001'
+            ],
+            [
+                'name' => 'Open Space',
+                'description' => 'Espace partagé 20 pers',
+                'captureTypes' => ['Temperature', 'Humidité', 'CO2', 'Luminosité', 'Bruit'],
+                'equipment' => ['Ordinateur', 'Wifi', 'Ecrans', 'Chaises'],
+                'acquisitionSystem' => 'Sensor-OS-001'
+            ],
+            [
+                'name' => 'Réunion',
+                'description' => 'Salle réunion 8 pers',
+                'captureTypes' => ['Temperature', 'Humidité', 'CO2', 'Bruit'],
+                'equipment' => ['Wifi', 'Ecrans', 'Chaises'],
+                'acquisitionSystem' => 'Sensor-RE-001'
+            ],
+            [
+                'name' => 'Kitchen',
+                'description' => 'Espace détente',
+                'captureTypes' => ['Temperature', 'Humidité'],
+                'equipment' => ['Machine à café', 'Fontaine à eau', 'Chaises'],
+                'acquisitionSystem' => 'Sensor-KT-001'
+            ],
+            [
+                'name' => 'Hall',
+                'description' => 'Hall accueil',
+                'captureTypes' => ['Temperature', 'Luminosité'],
+                'equipment' => ['Chaises'],
+                'acquisitionSystem' => 'Sensor-HL-001'
+            ],
         ];
 
         $roomEntities = [];
-        foreach ($rooms as [$name, $description, $types]) {
+        foreach ($roomsData as $roomData) {
             $room = new Room();
-            $room->setName($name);
-            $room->setDescription($description);
-            $room->setCreatedAt(new \DateTime());
+            $room->setName($roomData['name']);
+            $room->setDescription($roomData['description']);
 
             // Add capture types to room
-            foreach ($types as $typeName) {
+            foreach ($roomData['captureTypes'] as $typeName) {
                 $room->addCaptureType($captureTypeEntities[$typeName]);
             }
 
+            // Add equipment to room
+            foreach ($roomData['equipment'] as $equipmentName) {
+                $room->addEquipment($equipmentEntities[$equipmentName]);
+            }
+
+            // Add acquisition system to room
+            $acquisitionSystem = new AcquisitionSystem();
+            $acquisitionSystem->setName($roomData['acquisitionSystem']);
+            $acquisitionSystem->setRoom($room);
+            $room->addAcquisitionSystem($acquisitionSystem);
+
             $manager->persist($room);
+            $manager->persist($acquisitionSystem);
             $roomEntities[] = $room;
         }
 
@@ -80,8 +148,6 @@ class AppFixtures extends Fixture
                     $capture->setDescription($data['description']);
                     $capture->setRoom($room);
                     $capture->setType($captureType);
-                    // $capture->setCreatedAt(new \DateTime('-' . $hourOffset . ' hours'));
-                    $capture->setCreatedAt(Carbon::now());
                     $manager->persist($capture);
                     $hourOffset++;
                 }
