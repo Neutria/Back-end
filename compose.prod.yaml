@@ -38,6 +38,8 @@ services:
       - ./api/.env:/app/api/.env:ro
       # Mount JWT keys
       - ./api/config/jwt:/app/api/config/jwt:ro
+    depends_on:
+      - mariadb
     networks:
       - network
     environment:
@@ -50,6 +52,28 @@ services:
       retries: 3
       start_period: 40s
 
+  mariadb:
+    image: mariadb:latest
+    container_name: neutria-mariadb-prod
+    restart: unless-stopped
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    networks:
+      - network
+    environment:
+      - MYSQL_ROOT_PASSWORD=gc2MUtSsFz2y6FzeNeQ2jcrfSVcSQj
+      - MYSQL_DATABASE=dbneutria
+      - MYSQL_USER=userneutria
+      - MYSQL_PASSWORD=RGKmnVsUVP7m3nGuLMAL3TvRdVMj6h
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
 networks:
   network:
     name: neutria-network-prod
@@ -57,4 +81,6 @@ networks:
 
 volumes:
   public-files:
+    driver: local
+  mariadb-data:
     driver: local
