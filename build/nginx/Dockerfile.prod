@@ -1,0 +1,16 @@
+# Production image
+FROM nginx:stable-alpine
+
+# Copy nginx config
+COPY ./build/nginx/api.prod.conf /etc/nginx/conf.d/default.conf
+
+# Create app directory
+RUN mkdir -p /app/api/public
+
+# Configure timezone
+RUN ln -snf /usr/share/zoneinfo/Europe/Paris /etc/localtime && echo "Europe/Paris" > /etc/timezone
+
+# Copy only public assets from the API
+COPY ./api/public /app/api/public
+
+EXPOSE 80

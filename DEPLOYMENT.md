@@ -1,212 +1,302 @@
-# Neutria API - Production Deployment Guide
+# Neutria API - Production Deployment Guide (Docker)
 
-## CORS Configuration Fixed
+## Prerequisites
 
-The CORS (Cross-Origin Resource Sharing) issue has been resolved. The API now accepts requests from:
-- `https://climesense.fr`
-- `https://www.climesense.fr`
-- `https://*.climesense.fr` (any subdomain)
-- `http://localhost` (for local development)
+- Docker and Docker Compose installed on your production server
+- External MySQL/MariaDB database accessible from your server
+- Domain name configured (api.neutria.fr)
+- SSL certificates (recommended: use a reverse proxy like Traefik or Nginx Proxy Manager)
 
-## Deployment Steps for Production Server
+## Files Overview
 
-### 1. Update Environment Configuration on Server
+Production deployment uses separate files from development:
 
-On your production server, create or update `.env.local` file:
+- `build/php/Dockerfile.prod` - Production PHP-FPM container with optimizations
+- `build/nginx/Dockerfile.prod` - Production Nginx container
+- `build/nginx/api.prod.conf` - Production Nginx configuration with security headers
+- `compose.prod.yaml` - Production docker-compose file (no database)
+
+## Deployment Steps
+
+### 1. Prepare your environment file
+
+Copy and configure your production environment:
 
 ```bash
-cd /path/to/neutria/Back-end/api
-cp .env.prod.example .env.local
+cp api/.env.prod.example api/.env
 ```
 
-Edit `.env.local` with production values:
+Edit `api/.env` and update:
+- `APP_SECRET` - Generate a strong random secret (use `php bin/console secrets:generate-keys`)
+- `DATABASE_URL` - Update with your external database host/credentials
+- `JWT_PASSPHRASE` - Set your JWT passphrase
+- `CORS_ALLOW_ORIGIN` - Configure allowed origins
 
+Example production `.env`:
 ```bash
 APP_ENV=prod
-APP_SECRET=<generate-a-strong-random-secret>
+APP_SECRET=your-generated-secret-key-here
 APP_DEBUG=0
-CORS_ALLOW_ORIGIN='^https?://(localhost|127\.0\.0\.1|climesense\.fr|.*\.climesense\.fr)(:[0-9]+)?$'
-DATABASE_URL="mysql://user:password@host:3306/database?serverVersion=mariadb-10.11.2&charset=utf8mb4"
-```
-
-### 2. Clear Production Cache
-
-After updating configuration, clear the cache on the server:
-
-```bash
-# SSH into your server
-ssh user@api.climesense.fr
-
-# Navigate to project
-cd /path/to/neutria/Back-end
-
-# Clear cache
-docker compose exec php php bin/console cache:clear --env=prod
-
-# Or if not using Docker
-php bin/console cache:clear --env=prod
-```
-
-### 3. Restart Services
-
-Restart your web server and PHP-FPM to apply changes:
-
-```bash
-# With Docker
-docker compose restart nginx php
-
-# Or with systemd
-sudo systemctl restart nginx
-sudo systemctl restart php8.2-fpm
-```
-
-### 4. Verify CORS Headers
-
-Test that CORS headers are properly set:
-
-```bash
-curl -I -X OPTIONS https://api.climesense.fr/api/rooms \
-  -H "Origin: https://climesense.fr" \
-  -H "Access-Control-Request-Method: GET"
-```
-
-You should see these headers in the response:
-```
-Access-Control-Allow-Origin: https://climesense.fr
-Access-Control-Allow-Methods: GET, OPTIONS, POST, PUT, PATCH, DELETE
-Access-Control-Allow-Headers: Content-Type, Authorization, Accept, X-Requested-With
-```
-
-## CORS Configuration Details
-
-### File: `api/config/packages/nelmio_cors.yaml`
-
-The configuration now includes:
-
-```yaml
-nelmio_cors:
-    defaults:
-        origin_regex: true
-        allow_origin: ['%env(CORS_ALLOW_ORIGIN)%']
-        allow_methods: ['GET', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE']
-        allow_headers: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With']
-        expose_headers: ['Link', 'Content-Type', 'Authorization']
-        allow_credentials: false
-        max_age: 3600
-    paths:
-        '^/api':
-            allow_origin: ['%env(CORS_ALLOW_ORIGIN)%']
-            allow_methods: ['GET', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE']
-            allow_headers: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With']
-            expose_headers: ['Link', 'Content-Type', 'Authorization']
-            max_age: 3600
-            origin_regex: true
-```
-
-### Environment Variable
-
-In your `.env` or `.env.local`:
-
-```bash
+DATABASE_URL="mysql://username:password@external-db-host:3306/dbneutria?serverVersion=mariadb-10.11.2&charset=utf8mb4"
 CORS_ALLOW_ORIGIN='^https?://(localhost|127\.0\.0\.1|climesense\.fr|.*\.climesense\.fr)(:[0-9]+)?$'
 ```
 
-This regex pattern allows:
-- `http://localhost` or `https://localhost`
-- `http://127.0.0.1` or `https://127.0.0.1`
-- `https://climesense.fr`
-- `https://www.climesense.fr`
-- `https://app.climesense.fr`
-- Any other subdomain of `climesense.fr`
-- With or without port numbers
-
-## Customizing CORS for Specific Domains
-
-If you want to restrict to specific domains only:
+### 2. Generate JWT keys (if not already done)
 
 ```bash
-# Allow only specific domains
-CORS_ALLOW_ORIGIN='^https://(www\.climesense\.fr|app\.climesense\.fr)$'
+# Create JWT directory
+mkdir -p api/config/jwt
+
+# Generate private key (it will ask for a passphrase - use the same as JWT_PASSPHRASE in .env)
+openssl genpkey -out api/config/jwt/private.pem -aes256 -algorithm rsa -pkeyopt rsa_keygen_bits:4096
+
+# Generate public key
+openssl pkey -in api/config/jwt/private.pem -out api/config/jwt/public.pem -pubout
+
+# Set proper permissions
+chmod 600 api/config/jwt/private.pem
+chmod 644 api/config/jwt/public.pem
 ```
 
-If you want to allow all origins (NOT recommended for production):
+### 3. Configure external database connection
+
+Your `DATABASE_URL` in `api/.env` should point to your external database:
+
+```env
+# Example with external database
+DATABASE_URL="mysql://userneutria:password@192.168.1.100:3306/dbneutria?serverVersion=mariadb-10.11.2&charset=utf8mb4"
+
+# Or with domain name
+DATABASE_URL="mysql://userneutria:password@db.neutria.fr:3306/dbneutria?serverVersion=mariadb-10.11.2&charset=utf8mb4"
+```
+
+### 4. Build and start containers
 
 ```bash
-CORS_ALLOW_ORIGIN='*'
+# Build production images
+docker compose -f compose.prod.yaml build --no-cache
+
+# Start services in detached mode
+docker compose -f compose.prod.yaml up -d
+
+# Check containers are running
+docker compose -f compose.prod.yaml ps
 ```
 
-## Troubleshooting
+### 5. Run database migrations (first deployment only)
 
-### Issue: Still Getting CORS Errors
+```bash
+# Create database tables
+docker compose -f compose.prod.yaml exec php php bin/console doctrine:migrations:migrate --no-interaction
 
-1. **Check cache is cleared:**
-   ```bash
-   docker compose exec php php bin/console cache:clear --env=prod
-   ```
+# Or if migrations don't exist yet
+docker compose -f compose.prod.yaml exec php php bin/console doctrine:schema:update --force
+```
 
-2. **Verify environment variable is loaded:**
-   ```bash
-   docker compose exec php php bin/console debug:config nelmio_cors
-   ```
+### 6. Verify deployment
 
-3. **Check Nginx configuration** - ensure Nginx is not blocking CORS headers:
-   ```nginx
-   # In your Nginx config, ensure these are NOT set:
-   # add_header 'Access-Control-Allow-Origin' should be handled by Symfony
-   ```
+```bash
+# Check containers status
+docker compose -f compose.prod.yaml ps
 
-4. **Check browser console** for the exact error and request headers
+# View logs
+docker compose -f compose.prod.yaml logs -f
 
-5. **Test with curl:**
-   ```bash
-   curl -v -H "Origin: https://climesense.fr" https://api.climesense.fr/api/rooms
-   ```
+# Test API endpoint
+curl http://localhost:8000/
 
-### Issue: Preflight OPTIONS Requests Failing
+# Check PHP-FPM status
+docker compose -f compose.prod.yaml exec php php-fpm -t
+```
 
-Ensure your Nginx configuration passes OPTIONS requests to PHP:
+## Updating the Application
+
+To deploy a new version:
+
+```bash
+# Pull latest code
+git pull
+
+# Rebuild images with no cache
+docker compose -f compose.prod.yaml build --no-cache
+
+# Stop old containers and start new ones
+docker compose -f compose.prod.yaml up -d
+
+# Run migrations if needed
+docker compose -f compose.prod.yaml exec php php bin/console doctrine:migrations:migrate --no-interaction
+
+# Verify update
+docker compose -f compose.prod.yaml logs -f
+```
+
+## SSL/HTTPS Configuration
+
+For production, you should use a reverse proxy for SSL termination. Options:
+
+### Option 1: Nginx Reverse Proxy on Host
+
+Create `/etc/nginx/sites-available/api.neutria.fr`:
 
 ```nginx
-location ~ ^/api {
-    try_files $uri /index.php$is_args$args;
+server {
+    listen 443 ssl http2;
+    server_name api.neutria.fr;
+
+    ssl_certificate /etc/letsencrypt/live/api.neutria.fr/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.neutria.fr/privkey.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    location / {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+    }
+}
+
+# Redirect HTTP to HTTPS
+server {
+    listen 80;
+    server_name api.neutria.fr;
+    return 301 https://$server_name$request_uri;
 }
 ```
 
-## Additional Security Considerations
+### Option 2: Traefik (Docker-based)
 
-1. **Always use HTTPS in production** - the current config supports both HTTP and HTTPS, but you should enforce HTTPS
+Update `compose.prod.yaml` nginx service with Traefik labels:
 
-2. **Set specific origins** - instead of using wildcards, list specific domains:
+```yaml
+nginx:
+  # ... existing config ...
+  labels:
+    - "traefik.enable=true"
+    - "traefik.http.routers.neutria-api.rule=Host(`api.neutria.fr`)"
+    - "traefik.http.routers.neutria-api.entrypoints=websecure"
+    - "traefik.http.routers.neutria-api.tls.certresolver=letsencrypt"
+    - "traefik.http.services.neutria-api.loadbalancer.server.port=80"
+```
+
+## Monitoring and Logs
+
+```bash
+# View all logs
+docker compose -f compose.prod.yaml logs -f
+
+# View specific service logs
+docker compose -f compose.prod.yaml logs -f nginx
+docker compose -f compose.prod.yaml logs -f php
+
+# Monitor resource usage
+docker stats
+
+# Check container health
+docker compose -f compose.prod.yaml ps
+```
+
+## Backup Strategy
+
+Since the database is external, ensure you have backups for:
+
+1. **Database** - Handled by your external DB server
+2. **Uploaded files** - Back up the shared volume:
    ```bash
-   CORS_ALLOW_ORIGIN='^https://(climesense\.fr|app\.climesense\.fr)$'
+   docker run --rm -v neutria-backend-prod_public-files:/data -v $(pwd):/backup alpine tar czf /backup/public-files-backup.tar.gz -C /data .
    ```
+3. **JWT keys** - `api/config/jwt/`
+4. **Environment file** - `api/.env`
+5. **Application code** - Git repository
 
-3. **Enable credentials if needed** - if you're using cookies or authentication:
-   ```yaml
-   allow_credentials: true
-   ```
+## Performance Optimization
 
-4. **Monitor CORS requests** - check your logs for unauthorized origin attempts
+The production setup includes:
 
-## Testing After Deployment
+- **OPcache enabled** - PHP bytecode caching
+- **Composer optimized** - Class map optimized for production
+- **No dev dependencies** - Smaller image size
+- **Symfony cache warmed** - Faster first requests
+- **Static file caching** - 1 year cache for assets
+- **Health checks** - Automatic container monitoring
 
-1. Open your web app at `https://climesense.fr` or `https://app.climesense.fr`
-2. Open browser DevTools (F12) → Network tab
-3. Reload the page and watch API requests
-4. Check that responses include proper CORS headers:
-   - `Access-Control-Allow-Origin`
-   - `Access-Control-Allow-Methods`
-   - `Access-Control-Allow-Headers`
+## Troubleshooting
 
-## Contact & Support
+### Container won't start
 
-If you continue to experience CORS issues after following this guide:
+```bash
+# Check logs for errors
+docker compose -f compose.prod.yaml logs
 
-1. Check browser console for the exact error message
-2. Verify the `Origin` header in your request matches the allowed pattern
-3. Ensure the server environment is loading the correct `.env.local` file
-4. Restart all services after configuration changes
+# Check specific service
+docker compose -f compose.prod.yaml logs php
+```
+
+### Database connection issues
+
+```bash
+# Test database connection from PHP container
+docker compose -f compose.prod.yaml exec php php bin/console doctrine:query:sql "SELECT 1"
+
+# Check DATABASE_URL is correct
+docker compose -f compose.prod.yaml exec php php bin/console debug:container --env-vars
+```
+
+### Permission issues
+
+```bash
+# Fix permissions in container
+docker compose -f compose.prod.yaml exec php chown -R www-data:www-data /app/api/var /app/api/public
+```
+
+### Clear opcache after code changes
+
+```bash
+# Restart PHP container to clear opcache
+docker compose -f compose.prod.yaml restart php
+```
+
+### High memory usage
+
+```bash
+# Check resource usage
+docker stats
+
+# Adjust PHP memory limit in Dockerfile.prod if needed
+# memory_limit=512M can be increased
+```
+
+## Security Checklist
+
+- [ ] `.env` file has strong `APP_SECRET`
+- [ ] JWT keys are generated with strong passphrase
+- [ ] Database uses strong passwords
+- [ ] CORS is configured for specific domains (not `*`)
+- [ ] SSL/TLS is enabled (HTTPS)
+- [ ] `APP_DEBUG=0` in production
+- [ ] File permissions are correct (JWT keys are 600)
+- [ ] Firewall rules allow only necessary ports
+- [ ] Regular backups are scheduled
+- [ ] Monitoring is set up for errors and performance
+
+## Production vs Development
+
+| Feature | Development | Production |
+|---------|-------------|------------|
+| Environment | `APP_ENV=dev` | `APP_ENV=prod` |
+| Debug | Enabled | Disabled |
+| OPcache | Disabled | Enabled with no validation |
+| Composer | With dev deps | No dev deps, optimized |
+| Cache warmup | No | Yes |
+| Volumes | Bind mounts | Named volumes for uploads |
+| Database | Containerized | External |
+| HTTPS | Optional | Required (reverse proxy) |
+| Health checks | No | Yes |
 
 ---
 
-**Last Updated:** 2025-10-12
+**Last Updated:** 2025-10-13
