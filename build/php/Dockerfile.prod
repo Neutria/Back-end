@@ -50,12 +50,13 @@ RUN echo "expose_php=0" >> /usr/local/etc/php/conf.d/security.ini && \
     echo "log_errors=1" >> /usr/local/etc/php/conf.d/security.ini && \
     echo "memory_limit=512M" >> /usr/local/etc/php/conf.d/security.ini
 
-# Set proper permissions
-RUN chown -R www-data:www-data /app/api/var /app/api/public
-
-# Clear cache and warmup
+# Clear cache and warmup (as root first)
 RUN php bin/console cache:clear --env=prod --no-debug && \
     php bin/console cache:warmup --env=prod --no-debug
+
+# Set proper permissions AFTER cache warmup
+RUN chown -R www-data:www-data /app/api/var /app/api/public && \
+    chmod -R 775 /app/api/var
 
 # Switch to www-data user
 USER www-data
