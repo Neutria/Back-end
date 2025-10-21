@@ -60,5 +60,4 @@ USER www-data
 RUN php bin/console cache:clear --env=prod --no-debug && \
     php bin/console cache:warmup --env=prod --no-debug
 
-
 EXPOSE 9000

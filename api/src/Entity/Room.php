@@ -71,7 +71,7 @@ class Room
     /**
      * @var Collection<int, AcquisitionSystem>
      */
-    #[ORM\OneToMany(targetEntity: AcquisitionSystem::class, mappedBy: 'room', cascade: ['persist'])]
+    #[ORM\OneToMany(targetEntity: AcquisitionSystem::class, mappedBy: 'room', cascade: ['persist', 'remove'])]
     #[Groups(['capture:room', 'room:read'])]
     private Collection $acquisitionSystems;
 
